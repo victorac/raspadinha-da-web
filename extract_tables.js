@@ -1,10 +1,10 @@
 const puppeteer = require('puppeteer');
 
-const extract_tables = (page) => {
+async function extract_tables(page) {
   const resultsSelector = "#conteudo_divMensal"
   await page.waitForSelector(resultsSelector);
   await page.screenshot({ path: 'selector_loaded.png' });
-  const extracted_tables = await page.evaluate((resultsSelector) => {
+  const extracted_tables = await page.evaluate(() => {
     var anos = [...document.querySelectorAll(".Anos")].map(val => val.textContent)
     var tables = [...document.querySelectorAll("table")].map(table => {
       var rows = [...table.querySelectorAll("tr")]
@@ -28,57 +28,67 @@ const extract_tables = (page) => {
 
 const max_level = 2
 
-const crawl = (page, item, level) => {
+
+async function crawl(page, item, level){
   const level_object = {}
   if (level <= max_level){
     // step into item
-    await page.waitForSelector(item);
+    const item_name = await item.evaluate((node) => node.textContent)
+    console.log(item_name);
     await page.click(item);
     // get current level items
-    let content_type = document.querySelector("#conteudo_lbTipo");
+    const selector = "#conteudo_lbTipo"
+    await page.waitForSelector(selector);
+    let content_type = document.querySelector(selector);
     const level_name = content_type.textContent; 
     const level_items = [...content_type.parentElement.querySelectorAll(".list-group-item")].slice(1);
-    // craw over items
-    level_items.forEach( item => {
-      craw(page, item);
-      var tables = extract_tables(page);
-      level_object[item.textContent] = tables;
-    })
+    // crawl over items
+    for (let index = 0; index < level_items.length; index++) {
+      const level_item = level_items[index];
+      crawl(page, level_item, level+1);
+      var tables = await extract_tables(page);
+      level_object[level_item.textContent] = tables;
+    }
   }
   page.goBack();
   return level_object;
 }
 
+
 (async () => {
   const browser = await puppeteer.launch({
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
   const page = await browser.newPage();
   page.on('console', (msg) => console.log('PAGE LOG:', msg.text()));
   await page.goto('http://www.ssp.sp.gov.br/Estatistica/Pesquisa.aspx');
-  
+  await page.waitForSelector("#conteudo_lbTipo")
   // start crawl
   // get current level items
-  let content_type = document.querySelector("#conteudo_lbTipo");
-  const level_name = content_type.textContent; 
-  const level_items = [...content_type.parentElement.querySelectorAll(".list-group-item")].slice(1);
-  let initial_value = {}
-  level_object = level_items.reduce( (previous, current) => ({...previous, [current.textContent]: undefined}), initial_value)
-  // craw over items
-  level_items.forEach( item => {
-    crawl(page, item);
-    var tables = extract_tables(page);
-    level_object[item.textContent] = tables;
-  })
+  const statistics = {}
+  const statistic_name = await page.$eval("#conteudo_lbInfo", (node) => node.textContent);
 
+  let content_type = await page.$("#conteudo_lbTipo");
+  const level_name = await content_type.evaluate((node) => node.textContent);
+  console.log(level_name);
+  const data_tree = {};
+  var tables = await extract_tables(page);
+  data_tree[level_name] = tables;
 
-  
-
-
-  var allResultsSelector = '#conteudo_repLateral_lkLateral_0';
-  await page.waitForSelector(allResultsSelector);
-  await page.click(allResultsSelector);
-
-  console.log(extracted_tables["2021"]);
+  const level = 0
+  const parent = await content_type.$x("..")
+  const level_items = await parent[0].$$(".list-group-item")
+  for (let index = 13; index < level_items.length; index++) {
+    const level_item = level_items[index];
+    const item_name = await level_item.evaluate((node) => node.textContent);
+    console.log(item_name);
+    // craw over items
+    // const subtree = crawl(page, level_item, level);
+    // data_tree[item_name] = subtree
+  }
+  statistics[statistic_name] = {
+    tree: data_tree
+  }
+  console.log(statistics)
   await browser.close();
 })();

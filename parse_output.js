@@ -1,10 +1,14 @@
-var fs = require('fs');
-// read file sample.html
-let parsed;
-fs.readFile('output.json',
-    // callback function that is called when reading file is done
-    function(err, data) {       
-        if (err) throw err;
-        // data is a buffer containing file content
-        parsed = JSON.parse(data.toString('utf8'))
-});
+import { promises as fs_promise } from 'fs';
+
+async function load_output(){
+    let data = {}
+    try{
+        const text_data = await fs_promise.readFile('output.json', 'utf8');
+        data = JSON.parse(text_data);
+    } catch (error) {
+        console.log("file not found")
+    }
+    return data;
+}
+
+export default load_output;

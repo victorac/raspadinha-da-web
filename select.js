@@ -49,7 +49,6 @@ const link = 'http://www.ssp.sp.gov.br/Estatistica/Pesquisa.aspx';
                 console.log("JSON file has been saved.");
             });
         }
-        break;
     }
     await browser.close();
     const jsonContent = JSON.stringify(data);
